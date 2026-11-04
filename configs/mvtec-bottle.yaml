@@ -1,0 +1,9 @@
+root: ../data/mvtec_ad
+category: bottle
+manifest: ../artifacts/manifests/mvtec-bottle.json
+image_size: 256
+batch_size: 8
+num_workers: 0
+validation_ratio: 0.1
+calibration_ratio: 0.1
+seed: 42

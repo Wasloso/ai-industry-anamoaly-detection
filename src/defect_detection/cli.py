@@ -2,6 +2,7 @@ import argparse
 import json
 import platform
 from importlib.metadata import version
+from pathlib import Path
 
 import torch
 
@@ -26,6 +27,46 @@ def main():
     parser = argparse.ArgumentParser(prog="defect")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check-env")
+    data = subparsers.add_parser("data")
+    commands = data.add_subparsers(dest="data_command", required=True)
+    for name in ("validate", "preview"):
+        command = commands.add_parser(name)
+        command.add_argument("--config", type=Path, required=True)
+        if name == "preview":
+            command.add_argument(
+                "--split", choices=("train", "validation", "calibration", "test"), default="test"
+            )
+            command.add_argument("--output", type=Path, default=Path("artifacts/preview.png"))
+            command.add_argument("--limit", type=int, default=8)
     args = parser.parse_args()
     if args.command == "check-env":
         check_environment()
+        return
+
+    import yaml
+
+    from defect_detection.config import load_data_config
+    from defect_detection.data.mvtec import make_loader, prepare_data, summarize
+    from defect_detection.data.preview import save_preview
+
+    try:
+        config = load_data_config(args.config)
+        manifest = prepare_data(config)
+        if args.data_command == "validate":
+            batch = next(iter(make_loader(config, manifest, "train")))
+            print(
+                json.dumps(
+                    {
+                        "category": config.category,
+                        "manifest": str(config.manifest),
+                        "splits": summarize(manifest),
+                        "batch_shape": list(batch["image"].shape),
+                    },
+                    indent=2,
+                )
+            )
+        else:
+            save_preview(config, manifest, args.output, args.split, args.limit)
+            print(f"Preview saved to {args.output}")
+    except (OSError, ValueError, yaml.YAMLError) as error:
+        parser.error(str(error))
