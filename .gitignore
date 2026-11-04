@@ -352,3 +352,11 @@ http-client.private.env.json
 
 # Kubernetes Plugin
 .idea/kubernetes/configs/kubeconfig_*
+
+# Project data and generated outputs
+/data/
+/datasets/
+/artifacts/
+/runtime/
+/results/
+/.cache/
