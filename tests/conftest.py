@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 from PIL import Image, ImageDraw
 
@@ -23,8 +21,3 @@ def data_config(tmp_path):
     return DataConfig(
         root=root, category="bottle", manifest=tmp_path / "manifest.json", image_size=20
     )
-
-
-@pytest.fixture
-def defect_mask(data_config) -> Path:
-    return data_config.root / "bottle/ground_truth/crack/000_mask.png"
