@@ -34,6 +34,12 @@ def main():
     training.add_argument("--run-id", required=True)
     training.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
     training.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    calibration = subparsers.add_parser("calibrate")
+    calibration.add_argument("--artifact", type=Path, required=True)
+    calibration.add_argument("--config", type=Path, required=True)
+    calibration.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    calibration.add_argument("--false-alarm-rate", type=float, default=0.05)
+    calibration.add_argument("--pixel-false-alarm-rate", type=float, default=0.005)
     data = subparsers.add_parser("data")
     commands = data.add_subparsers(dest="data_command", required=True)
     for name in ("validate", "preview"):
@@ -61,6 +67,18 @@ def main():
             from defect_detection.pipeline import train
 
             report = train(args.config, args.run_id, args.artifacts_dir, args.device)
+            print(json.dumps(report, indent=2))
+            return
+        if args.command == "calibrate":
+            from defect_detection.calibration import calibrate
+
+            report = calibrate(
+                args.artifact,
+                args.config,
+                args.device,
+                args.false_alarm_rate,
+                args.pixel_false_alarm_rate,
+            )
             print(json.dumps(report, indent=2))
             return
         config = load_data_config(args.config)

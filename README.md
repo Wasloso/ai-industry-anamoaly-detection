@@ -128,3 +128,21 @@ scores, maps = model.predict(batch["image"])
 Reloading uses saved weights without downloading a backbone, reading the training
 dataset, or refitting the memory bank. Use the locked project environment when
 loading models. A checkpoint checksum detects mismatched files.
+
+## Calibration
+
+```bash
+uv run defect calibrate --artifact artifacts/bottle-pc-001 --config configs/mvtec-bottle.yaml
+```
+
+This scores only the reserved normal calibration images, then saves image and
+pixel thresholds in `calibration.json`. It checks the split manifest and input
+size against the training run. Default target false-alarm rates are 5% per image
+and 0.5% per pixel, configurable with `--false-alarm-rate` and
+`--pixel-false-alarm-rate`. Decisions use scores strictly greater than the
+threshold. The saved thresholds are tied to the model and preprocessing metadata.
+
+The reported false-alarm rates describe the calibration samples. With only 20
+normal images, these estimates are coarse and do not guarantee future rates.
+Test labels and defect masks are not used to choose thresholds. Recalibration
+replaces the threshold file without changing fitted weights or the memory bank.

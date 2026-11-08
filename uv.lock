@@ -203,6 +203,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anomalib" },
+    { name = "numpy" },
     { name = "pillow" },
     { name = "pyyaml" },
     { name = "torch", version = "2.10.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -220,6 +221,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anomalib", specifier = "==2.7.0" },
+    { name = "numpy", specifier = ">=2,<3" },
     { name = "pillow", specifier = ">=10.1,<14" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==2.10.0" },
