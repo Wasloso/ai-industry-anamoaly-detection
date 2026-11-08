@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import platform
 from importlib.metadata import version
 from pathlib import Path
@@ -24,9 +25,15 @@ def check_environment():
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(prog="defect")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check-env")
+    training = subparsers.add_parser("train")
+    training.add_argument("--config", type=Path, required=True)
+    training.add_argument("--run-id", required=True)
+    training.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
+    training.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     data = subparsers.add_parser("data")
     commands = data.add_subparsers(dest="data_command", required=True)
     for name in ("validate", "preview"):
@@ -50,6 +57,12 @@ def main():
     from defect_detection.data.preview import save_preview
 
     try:
+        if args.command == "train":
+            from defect_detection.pipeline import train
+
+            report = train(args.config, args.run_id, args.artifacts_dir, args.device)
+            print(json.dumps(report, indent=2))
+            return
         config = load_data_config(args.config)
         manifest = prepare_data(config)
         if args.data_command == "validate":

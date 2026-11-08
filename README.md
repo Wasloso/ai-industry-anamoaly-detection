@@ -105,3 +105,26 @@ Fitting collects features from normal training images and selects a representati
 memory bank; it does not optimize CNN weights. The model applies ImageNet
 normalization once, after the loader's resize. Validation/calibration/test images
 are excluded from fitting. Scores are raw anomaly distances, not probabilities.
+
+## Saved models
+
+```bash
+uv run defect train --config configs/mvtec-bottle-patchcore.yaml --run-id bottle-pc-001
+```
+
+Use `--device cpu` or `--device cuda` to select a device explicitly; the default
+is `auto`. Each run creates a new folder under `artifacts/`, with model weights
+and the memory bank in `model.pt`, readable settings and provenance in
+`metadata.json`, and a snapshot of the split manifest. Existing runs are not
+overwritten. Input size and normalization are saved with the model.
+
+```python
+from defect_detection.models.artifacts import load_artifact
+
+model, metadata = load_artifact(Path("artifacts/bottle-pc-001"), device="cpu")
+scores, maps = model.predict(batch["image"])
+```
+
+Reloading uses saved weights without downloading a backbone, reading the training
+dataset, or refitting the memory bank. Use the locked project environment when
+loading models. A checkpoint checksum detects mismatched files.
