@@ -22,7 +22,7 @@ uv run python scripts/check_models.py
 This uses random images to check execution and GPU memory, not detection accuracy.
 It fits a small PatchCore memory bank and runs one EfficientAD optimization step.
 The first run downloads the ResNet-18 backbone and EfficientAD teacher weights.
-Full training and ImageNette preparation come in the next stage.
+Full EfficientAD training and ImageNette preparation come in the next stage.
 
 ```bash
 uv run pytest
@@ -146,3 +146,29 @@ The reported false-alarm rates describe the calibration samples. With only 20
 normal images, these estimates are coarse and do not guarantee future rates.
 Test labels and defect masks are not used to choose thresholds. Recalibration
 replaces the threshold file without changing fitted weights or the memory bank.
+
+## Inference
+
+```bash
+uv run defect predict --artifact artifacts/bottle-pc-001 --input data/mvtec_ad/bottle/test/broken_large/000.png --output artifacts/prediction-001
+uv run defect predict --artifact artifacts/bottle-pc-001 --input data/mvtec_ad/bottle/test --output artifacts/bottle-test-predictions
+```
+
+Calibrate the artifact first. Inference loads it once and processes a single image
+or all supported images in a folder, including subfolders. It needs only the saved
+artifact and input images; no dataset configuration, labels, or ground-truth masks
+are needed. The configured product category comes from the training artifact.
+
+Each output folder contains `results.json` with scores, thresholds, decisions,
+model/calibration identities, input dimensions, timing, and output paths. Each
+image produces a raw float map (`.map.npy`), heatmap, binary mask, and red defect
+overlay. Maps and visualizations have the original image dimensions. The color
+scale is fixed by calibration, so images remain visually comparable. Pixel masks
+are suspected defect regions, not labels for named defect types.
+
+Use a new output directory for each run, outside the input folder. Unsupported
+file extensions are skipped during folder discovery; unreadable images stop the
+command with an error. Inference time covers normalization, model execution, and
+returning scores/maps to CPU; it excludes decoding, resizing, and writing images.
+The first call also includes model warm-up, so these per-image timings are not a
+standalone throughput benchmark. Existing output folders are not overwritten.

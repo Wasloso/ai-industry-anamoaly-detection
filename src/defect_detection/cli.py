@@ -40,6 +40,11 @@ def main():
     calibration.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     calibration.add_argument("--false-alarm-rate", type=float, default=0.05)
     calibration.add_argument("--pixel-false-alarm-rate", type=float, default=0.005)
+    prediction = subparsers.add_parser("predict")
+    prediction.add_argument("--artifact", type=Path, required=True)
+    prediction.add_argument("--input", dest="source", type=Path, required=True)
+    prediction.add_argument("--output", type=Path, required=True)
+    prediction.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     data = subparsers.add_parser("data")
     commands = data.add_subparsers(dest="data_command", required=True)
     for name in ("validate", "preview"):
@@ -79,6 +84,12 @@ def main():
                 args.false_alarm_rate,
                 args.pixel_false_alarm_rate,
             )
+            print(json.dumps(report, indent=2))
+            return
+        if args.command == "predict":
+            from defect_detection.inference import predict
+
+            report = predict(args.artifact, args.source, args.output, args.device)
             print(json.dumps(report, indent=2))
             return
         config = load_data_config(args.config)
