@@ -79,3 +79,29 @@ manifest = prepare_data(config)
 batch = next(iter(make_loader(config, manifest, "train")))
 print(batch["image"].shape)
 ```
+
+## PatchCore fitting
+
+`configs/mvtec-bottle-patchcore.yaml` selects the dataset configuration, backbone,
+feature layers, and memory-bank sampling ratio. Start with ResNet-18 and a 1%
+coreset to keep memory use small on the development laptop.
+
+```python
+from pathlib import Path
+import torch
+from defect_detection.config import load_training_config
+from defect_detection.data.mvtec import make_loader, prepare_data
+from defect_detection.models.patchcore import PatchCore
+
+data_config, model_config = load_training_config(Path("configs/mvtec-bottle-patchcore.yaml"))
+manifest = prepare_data(data_config)
+torch.manual_seed(data_config.seed)
+model = PatchCore(model_config, image_size=data_config.image_size)
+report = model.fit(make_loader(data_config, manifest, "train"))
+scores, maps = model.predict(next(iter(make_loader(data_config, manifest, "validation")))["image"])
+```
+
+Fitting collects features from normal training images and selects a representative
+memory bank; it does not optimize CNN weights. The model applies ImageNet
+normalization once, after the loader's resize. Validation/calibration/test images
+are excluded from fitting. Scores are raw anomaly distances, not probabilities.

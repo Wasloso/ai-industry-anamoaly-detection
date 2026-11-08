@@ -46,3 +46,47 @@ def load_data_config(path: Path) -> DataConfig:
         return DataConfig(**values)
     except TypeError as error:
         raise ValueError(f"Invalid data configuration: {error}") from error
+
+
+@dataclass(frozen=True)
+class PatchCoreConfig:
+    backbone: str = "resnet18"
+    layers: tuple[str, ...] = ("layer2", "layer3")
+    coreset_ratio: float = 0.01
+    num_neighbors: int = 9
+
+    def __post_init__(self):
+        if not isinstance(self.backbone, str) or not self.backbone:
+            raise ValueError("backbone must be a model name")
+        if (
+            not isinstance(self.layers, (tuple, list))
+            or not self.layers
+            or not all(isinstance(layer, str) and layer for layer in self.layers)
+        ):
+            raise ValueError("layers must contain feature layer names")
+        if type(self.coreset_ratio) not in (float, int) or not 0 < self.coreset_ratio <= 1:
+            raise ValueError("coreset_ratio must be greater than 0 and at most 1")
+        if type(self.num_neighbors) is not int or self.num_neighbors < 1:
+            raise ValueError("num_neighbors must be a positive integer")
+
+
+def load_training_config(path: Path) -> tuple[DataConfig, PatchCoreConfig]:
+    path = path.resolve()
+    with path.open() as file:
+        values = yaml.safe_load(file)
+    if not isinstance(values, dict) or set(values) - {"data", "model"}:
+        raise ValueError("Training configuration must contain data and model settings")
+    if not isinstance(values.get("data"), str):
+        raise ValueError("data must point to a dataset configuration")
+    settings = values.get("model", {})
+    if not isinstance(settings, dict):
+        raise ValueError("model must be a YAML mapping")
+    if "layers" in settings:
+        if not isinstance(settings["layers"], list):
+            raise ValueError("layers must be a list of feature layer names")
+        settings["layers"] = tuple(settings["layers"])
+    try:
+        model_config = PatchCoreConfig(**settings)
+    except TypeError as error:
+        raise ValueError(f"Invalid model configuration: {error}") from error
+    return load_data_config(path.parent / values["data"]), model_config
