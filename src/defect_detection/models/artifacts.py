@@ -28,8 +28,9 @@ def save_artifact(model: PatchCore, path: Path, data: DataConfig, manifest: dict
         {key: value.cpu() for key, value in model.model.state_dict().items()}, path / "model.pt"
     )
     metadata = {
-        "format_version": 1,
+        "format_version": 2,
         "model_type": "patchcore",
+        "implementation": "project-pytorch",
         "run_id": path.name,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "model_config": asdict(model.config),
@@ -46,9 +47,7 @@ def save_artifact(model: PatchCore, path: Path, data: DataConfig, manifest: dict
         },
         "manifest_sha256": manifest_hash(manifest),
         "model_sha256": file_hash(path / "model.pt"),
-        "versions": {
-            name: version(name) for name in ("torch", "torchvision", "anomalib", "pillow")
-        },
+        "versions": {name: version(name) for name in ("torch", "torchvision", "pillow")},
         "fit": report,
     }
     (path / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -57,7 +56,13 @@ def save_artifact(model: PatchCore, path: Path, data: DataConfig, manifest: dict
 
 def load_artifact(path: Path, device="auto") -> tuple[PatchCore, dict]:
     metadata = json.loads((path / "metadata.json").read_text())
-    if metadata["format_version"] != 1 or metadata["model_type"] != "patchcore":
+    if metadata["format_version"] == 1:
+        raise ValueError("Experimental Anomalib artifact; fit a new model with this implementation")
+    if (
+        metadata["format_version"] != 2
+        or metadata["model_type"] != "patchcore"
+        or metadata.get("implementation") != "project-pytorch"
+    ):
         raise ValueError("Unsupported model artifact")
     preprocessing = metadata["preprocessing"]
     if (
@@ -76,6 +81,10 @@ def load_artifact(path: Path, device="auto") -> tuple[PatchCore, dict]:
         pretrained=False,
     )
     state = torch.load(path / "model.pt", map_location="cpu", weights_only=True)
+    bank = state.get("memory_bank")
+    if bank is None or bank.ndim != 2 or not bank.numel() or not torch.isfinite(bank).all():
+        raise ValueError("The artifact contains an invalid memory bank")
+    model.model.memory_bank = torch.empty_like(bank, device=model.device)
     model.model.load_state_dict(state)
     model.model.eval()
     if not model.model.memory_bank.numel():

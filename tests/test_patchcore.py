@@ -1,7 +1,13 @@
 import math
+from dataclasses import replace
 
 import torch
+from torchvision.models import _api as model_api
 
+from defect_detection.config import PatchCoreConfig
+from defect_detection.data.mvtec import make_loader, prepare_data
+from defect_detection.models.artifacts import load_artifact, save_artifact
+from defect_detection.models.patchcore import PatchCore
 from defect_detection.models.torch_patchcore import PatchCoreModel, select_coreset
 
 
@@ -32,3 +38,27 @@ def test_nearest_neighbors_and_reweighted_score_match_known_distances(monkeypatc
     torch.testing.assert_close(scores, torch.tensor([expected]))
     assert maps.shape == (1, 1, 16, 16)
     assert torch.isfinite(maps).all()
+
+
+def test_fitted_artifact_reloads_without_downloading_weights(data_config, tmp_path, monkeypatch):
+    torch.set_num_threads(2)
+    data = replace(data_config, image_size=32)
+    manifest = prepare_data(data)
+    model = PatchCore(PatchCoreConfig(coreset_ratio=0.5), 32, device="cpu", pretrained=False)
+    report = model.fit(make_loader(data, manifest, "train"))
+    images = next(iter(make_loader(data, manifest, "test")))["image"]
+    expected_scores, expected_maps = model.predict(images)
+    artifact = tmp_path / "model"
+    save_artifact(model, artifact, data, manifest, report)
+
+    def reject_download(*args, **kwargs):
+        raise AssertionError("Reload must not download weights")
+
+    monkeypatch.setattr(model_api, "load_state_dict_from_url", reject_download)
+    restored, metadata = load_artifact(artifact, device="cpu")
+    scores, maps = restored.predict(images)
+    assert metadata["implementation"] == "project-pytorch"
+    assert report["fitting_images"] == 10
+    assert not any(parameter.requires_grad for parameter in restored.model.parameters())
+    torch.testing.assert_close(scores, expected_scores)
+    torch.testing.assert_close(maps, expected_maps)

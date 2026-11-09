@@ -2,10 +2,10 @@ import logging
 import time
 
 import torch
-from anomalib.models.image.patchcore.torch_model import PatchcoreModel
 from torchvision.transforms.functional import normalize
 
 from defect_detection.config import PatchCoreConfig
+from defect_detection.models.torch_patchcore import PatchCoreModel, select_coreset
 
 MEAN = (0.485, 0.456, 0.406)
 STD = (0.229, 0.224, 0.225)
@@ -21,10 +21,10 @@ class PatchCore:
         self.device = torch.device(device)
         self.config = config
         self.image_size = image_size
-        self.model = PatchcoreModel(
+        self.model = PatchCoreModel(
             backbone=config.backbone,
             layers=config.layers,
-            pre_trained=pretrained,
+            pretrained=pretrained,
             num_neighbors=config.num_neighbors,
         ).to(self.device)
 
@@ -38,21 +38,24 @@ class PatchCore:
     @torch.no_grad()
     def fit(self, loader):
         started = time.perf_counter()
-        self.model.embedding_store.clear()
-        self.model.train()
-        self.model.feature_extractor.eval()
+        self.model.eval()
+        self.model.memory_bank = torch.empty(0, 0, device=self.device)
+        embeddings = []
         image_count = 0
         for index, batch in enumerate(loader):
             if torch.any(batch["label"] != 0):
                 raise ValueError("PatchCore fitting requires normal images only")
-            self.model(self.preprocess(batch["image"]))
+            features = self.model.embed(self.preprocess(batch["image"]))
+            embeddings.append(features.permute(0, 2, 3, 1).reshape(-1, features.shape[1]))
             image_count += len(batch["image"])
             logger.info("Extracted features: batch %s/%s", index + 1, len(loader))
-        patch_count = sum(len(embedding) for embedding in self.model.embedding_store)
-        if int(patch_count * self.config.coreset_ratio) < 1:
-            raise ValueError("Not enough patches for this coreset_ratio")
-        self.model.subsample_embedding(self.config.coreset_ratio)
-        self.model.eval()
+        if not embeddings:
+            raise ValueError("No normal fitting images found")
+        patches = torch.cat(embeddings)
+        if not torch.isfinite(patches).all():
+            raise ValueError("Fitting produced non-finite features")
+        patch_count = len(patches)
+        self.model.memory_bank = select_coreset(patches, self.config.coreset_ratio)
         if self.device.type == "cuda":
             torch.cuda.synchronize(self.device)
         return {
@@ -68,10 +71,7 @@ class PatchCore:
         if not self.model.memory_bank.numel():
             raise ValueError("Fit or load a model before predicting")
         self.model.eval()
-        output = self.model(self.preprocess(images))
-        if (
-            not torch.isfinite(output.pred_score).all()
-            or not torch.isfinite(output.anomaly_map).all()
-        ):
+        scores, maps = self.model(self.preprocess(images))
+        if not torch.isfinite(scores).all() or not torch.isfinite(maps).all():
             raise ValueError("Model produced non-finite scores or maps")
-        return output.pred_score.flatten().cpu(), output.anomaly_map.cpu()
+        return scores.flatten().cpu(), maps.cpu()
