@@ -4,14 +4,14 @@
 ## Implementation direction
 
 The selected solution is our own PatchCore implementation in PyTorch, using a
-torchvision pretrained ResNet only as the feature extractor. We will implement
-feature aggregation, coreset selection, the memory bank, neighbour search,
-scores and anomaly maps ourselves. EfficientAD and other methods remain
+torchvision pretrained ResNet only as the feature extractor. Feature aggregation,
+coreset selection, the memory bank, neighbour search, scores and maps are
+implemented in the project. EfficientAD and other methods remain
 literature alternatives. Experiments will compare configurations of PatchCore.
 
-The current prototype still wraps Anomalib; the commands below describe that
-existing code. Replacing it is pending implementation work. See the
-[implementation roadmap](docs/implementation-roadmap.md) for the target scope.
+The application commands use our PyTorch implementation. The original Anomalib
+prototypes are preserved under [experiments](experiments/README.md) and require
+the optional `experiments` dependency group. They are not imported by the application.
 
 ## Setup
 
@@ -25,16 +25,15 @@ uv run defect check-env
 The lockfile includes PyTorch's CUDA 12.6 build on Linux and Windows. It also works
 on CPU when no compatible GPU is available. macOS uses the standard PyTorch build.
 
-To check the existing library-based prototype:
+To check the native model on small synthetic inputs:
 
 ```bash
-uv run python experiments/check_anomalib_models.py
+uv run python scripts/check_patchcore.py
 ```
 
-This uses random images to check execution and GPU memory, not detection accuracy.
-It fits a small PatchCore memory bank and runs one EfficientAD optimization step.
-The first run downloads the ResNet-18 backbone and EfficientAD teacher weights.
-This legacy smoke check does not define the target scope: only our own PatchCore is selected for implementation.
+This checks execution with random backbone weights, not detection accuracy.
+Real fitting downloads ImageNet weights on the first run. To preserve those
+weights inside the ignored project cache, set `TORCH_HOME` to `.cache/torch`.
 
 ```bash
 uv run pytest
@@ -118,6 +117,18 @@ memory bank; it does not optimize CNN weights. The model applies ImageNet
 normalization once, after the loader's resize. Validation/calibration/test images
 are excluded from fitting. Scores are raw anomaly distances, not probabilities.
 
+The implementation pools local features with a 3 x 3 window, aligns feature maps,
+and concatenates them. Greedy farthest-point selection uses a Gaussian projection
+to 128 dimensions when needed; the bank retains the original features. Prediction
+uses chunked Euclidean searches, support-neighbour image-score reweighting, and
+bilinear maps smoothed with sigma 4 and replicated borders. `num_neighbors` controls
+the reweighting support, not averaging the closest patch distances.
+
+This is our implementation of the [PatchCore approach](https://arxiv.org/abs/2106.08265),
+with a smaller backbone and explicit sampling/search choices. It does not claim
+to reproduce the paper's published benchmark results.
+
+
 ## Saved models
 
 ```bash
@@ -140,6 +151,11 @@ scores, maps = model.predict(batch["image"])
 Reloading uses saved weights without downloading a backbone, reading the training
 dataset, or refitting the memory bank. Use the locked project environment when
 loading models. A checkpoint checksum detects mismatched files.
+
+Native checkpoints use artifact format 2 and record `project-pytorch` as their
+implementation. Earlier Anomalib checkpoints are experimental format 1; the main
+loader rejects them explicitly. Fit a new run before calibration and prediction.
+
 
 ## Calibration
 

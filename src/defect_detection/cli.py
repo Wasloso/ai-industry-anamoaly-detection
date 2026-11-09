@@ -12,7 +12,7 @@ def check_environment():
     report = {
         "python": platform.python_version(),
         "torch": torch.__version__,
-        "anomalib": version("anomalib"),
+        "torchvision": version("torchvision"),
         "cuda_available": torch.cuda.is_available(),
     }
     if torch.cuda.is_available():

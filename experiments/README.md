@@ -10,7 +10,10 @@ reference experiments, not the independent PatchCore implementation.
 Run the architecture check from the repository root:
 
 ```bash
-uv run python experiments/check_anomalib_models.py
+uv run --extra experiments python experiments/check_anomalib_models.py
 ```
 
 Large weights, datasets and experiment outputs stay outside version control.
+
+The default installation does not include Anomalib. The wrapper can be imported
+from `experiments.anomalib_patchcore` when explicitly running reference experiments.
