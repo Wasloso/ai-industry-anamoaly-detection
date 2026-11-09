@@ -11,7 +11,10 @@ literature alternatives. Experiments will compare configurations of PatchCore.
 
 The application commands use our PyTorch implementation. The original Anomalib
 prototypes are preserved under [experiments](experiments/README.md) and require
-the optional `experiments` dependency group. They are not imported by the application.
+the optional `experiments` extra. They are not imported by the application.
+
+For the complete teammate workflow, see [getting started](docs/getting-started.md).
+The [roadmap](docs/implementation-roadmap.md) marks completed and planned stages.
 
 ## Setup
 
@@ -128,11 +131,10 @@ This is our implementation of the [PatchCore approach](https://arxiv.org/abs/210
 with a smaller backbone and explicit sampling/search choices. It does not claim
 to reproduce the paper's published benchmark results.
 
-
 ## Saved models
 
 ```bash
-uv run defect train --config configs/mvtec-bottle-patchcore.yaml --run-id bottle-pc-001
+uv run defect train --config configs/mvtec-bottle-patchcore.yaml --run-id bottle-native-001
 ```
 
 Use `--device cpu` or `--device cuda` to select a device explicitly; the default
@@ -144,7 +146,7 @@ overwritten. Input size and normalization are saved with the model.
 ```python
 from defect_detection.models.artifacts import load_artifact
 
-model, metadata = load_artifact(Path("artifacts/bottle-pc-001"), device="cpu")
+model, metadata = load_artifact(Path("artifacts/bottle-native-001"), device="cpu")
 scores, maps = model.predict(batch["image"])
 ```
 
@@ -156,11 +158,10 @@ Native checkpoints use artifact format 2 and record `project-pytorch` as their
 implementation. Earlier Anomalib checkpoints are experimental format 1; the main
 loader rejects them explicitly. Fit a new run before calibration and prediction.
 
-
 ## Calibration
 
 ```bash
-uv run defect calibrate --artifact artifacts/bottle-pc-001 --config configs/mvtec-bottle.yaml
+uv run defect calibrate --artifact artifacts/bottle-native-001 --config configs/mvtec-bottle.yaml
 ```
 
 This scores only the reserved normal calibration images, then saves image and
@@ -178,8 +179,8 @@ replaces the threshold file without changing fitted weights or the memory bank.
 ## Inference
 
 ```bash
-uv run defect predict --artifact artifacts/bottle-pc-001 --input data/mvtec_ad/bottle/test/broken_large/000.png --output artifacts/prediction-001
-uv run defect predict --artifact artifacts/bottle-pc-001 --input data/mvtec_ad/bottle/test --output artifacts/bottle-test-predictions
+uv run defect predict --artifact artifacts/bottle-native-001 --input data/mvtec_ad/bottle/test/broken_large/000.png --output artifacts/prediction-001
+uv run defect predict --artifact artifacts/bottle-native-001 --input data/mvtec_ad/bottle/test --output artifacts/bottle-test-predictions
 ```
 
 Calibrate the artifact first. Inference loads it once and processes a single image
