@@ -1,0 +1,7 @@
+data: mvtec-bottle.yaml
+model:
+  name: padim
+  backbone: resnet18
+  layers: [layer2, layer3]
+  parameters:
+    n_features: 100

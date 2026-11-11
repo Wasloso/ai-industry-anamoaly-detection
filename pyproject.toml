@@ -8,15 +8,14 @@ version = "0.1.0"
 description = "Image-based product defect detection"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "anomalib==2.7.0",
     "numpy>=2,<3",
     "pillow>=10.1,<14",
     "pyyaml==6.0.3",
+    "streamlit>=1.50,<2",
     "torch==2.10.0",
     "torchvision==0.25.0",
 ]
-
-[project.optional-dependencies]
-experiments = ["anomalib==2.7.0"]
 
 [project.scripts]
 defect = "defect_detection.cli:main"

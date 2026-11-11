@@ -13,6 +13,8 @@ def check_environment():
         "python": platform.python_version(),
         "torch": torch.__version__,
         "torchvision": version("torchvision"),
+        "anomalib": version("anomalib"),
+        "streamlit": version("streamlit"),
         "cuda_available": torch.cuda.is_available(),
     }
     if torch.cuda.is_available():
@@ -29,18 +31,24 @@ def main():
     parser = argparse.ArgumentParser(prog="defect")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check-env")
-    training = subparsers.add_parser("train")
+    models = subparsers.add_parser("model", help="Check initial Anomalib model configurations")
+    model_commands = models.add_subparsers(dest="model_command", required=True)
+    model_check = model_commands.add_parser("check")
+    model_check.add_argument("--config", type=Path, required=True)
+    native = subparsers.add_parser("native", help="Earlier native PatchCore experiment")
+    native_commands = native.add_subparsers(dest="native_command", required=True)
+    training = native_commands.add_parser("train")
     training.add_argument("--config", type=Path, required=True)
     training.add_argument("--run-id", required=True)
     training.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
     training.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
-    calibration = subparsers.add_parser("calibrate")
+    calibration = native_commands.add_parser("calibrate")
     calibration.add_argument("--artifact", type=Path, required=True)
     calibration.add_argument("--config", type=Path, required=True)
     calibration.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     calibration.add_argument("--false-alarm-rate", type=float, default=0.05)
     calibration.add_argument("--pixel-false-alarm-rate", type=float, default=0.005)
-    prediction = subparsers.add_parser("predict")
+    prediction = native_commands.add_parser("predict")
     prediction.add_argument("--artifact", type=Path, required=True)
     prediction.add_argument("--input", dest="source", type=Path, required=True)
     prediction.add_argument("--output", type=Path, required=True)
@@ -63,18 +71,40 @@ def main():
 
     import yaml
 
-    from defect_detection.config import load_data_config
+    from defect_detection.config import load_data_config, load_model_config
     from defect_detection.data.mvtec import make_loader, prepare_data, summarize
     from defect_detection.data.preview import save_preview
 
     try:
-        if args.command == "train":
+        if args.command == "model":
+            from defect_detection.models.anomalib_models import build_model
+
+            data, settings = load_model_config(args.config)
+            torch.manual_seed(data.seed)
+            torch.set_num_threads(min(4, torch.get_num_threads()))
+            model = build_model(settings, data.image_size, pretrained=False)
+            print(
+                json.dumps(
+                    {
+                        "implementation": "anomalib",
+                        "class": type(model).__name__,
+                        "model": settings,
+                        "image_size": data.image_size,
+                        "category": data.category,
+                        "pretrained_weights": False,
+                        "fitted": False,
+                    },
+                    indent=2,
+                )
+            )
+            return
+        if args.command == "native" and args.native_command == "train":
             from defect_detection.pipeline import train
 
             report = train(args.config, args.run_id, args.artifacts_dir, args.device)
             print(json.dumps(report, indent=2))
             return
-        if args.command == "calibrate":
+        if args.command == "native" and args.native_command == "calibrate":
             from defect_detection.calibration import calibrate
 
             report = calibrate(
@@ -86,7 +116,7 @@ def main():
             )
             print(json.dumps(report, indent=2))
             return
-        if args.command == "predict":
+        if args.command == "native" and args.native_command == "predict":
             from defect_detection.inference import predict
 
             report = predict(args.artifact, args.source, args.output, args.device)

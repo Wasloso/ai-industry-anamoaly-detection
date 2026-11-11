@@ -1,0 +1,6 @@
+data: ../../configs/mvtec-bottle.yaml
+model:
+  backbone: resnet18
+  layers: [layer2, layer3]
+  coreset_ratio: 0.01
+  num_neighbors: 9

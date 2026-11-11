@@ -90,3 +90,39 @@ def load_training_config(path: Path) -> tuple[DataConfig, PatchCoreConfig]:
     except TypeError as error:
         raise ValueError(f"Invalid model configuration: {error}") from error
     return load_data_config(path.parent / values["data"]), model_config
+
+
+def load_model_config(path: Path) -> tuple[DataConfig, dict]:
+    path = path.resolve()
+    values = yaml.safe_load(path.read_text())
+    if not isinstance(values, dict) or set(values) != {"data", "model"}:
+        raise ValueError("Model configuration must contain data and model settings")
+    if not isinstance(values["data"], str) or not values["data"]:
+        raise ValueError("data must point to a dataset configuration")
+    model = values["model"]
+    if not isinstance(model, dict) or set(model) != {"name", "backbone", "layers", "parameters"}:
+        raise ValueError("model must contain name, backbone, layers and parameters")
+    name = model["name"]
+    if name not in ("patchcore", "padim"):
+        raise ValueError("Choose patchcore or padim")
+    if not isinstance(model["backbone"], str) or not model["backbone"]:
+        raise ValueError("backbone must be a model name")
+    layers = model["layers"]
+    if (
+        not isinstance(layers, list)
+        or not layers
+        or not all(isinstance(layer, str) and layer for layer in layers)
+        or len(set(layers)) != len(layers)
+    ):
+        raise ValueError("layers must contain distinct feature layer names")
+    parameters = model["parameters"]
+    allowed = {"coreset_sampling_ratio", "num_neighbors"} if name == "patchcore" else {"n_features"}
+    if not isinstance(parameters, dict) or set(parameters) - allowed:
+        raise ValueError(f"Unsupported parameters for {name}")
+    for key, value in parameters.items():
+        if key == "coreset_sampling_ratio":
+            if type(value) not in (int, float) or not 0 < value <= 1:
+                raise ValueError("coreset_sampling_ratio must be between 0 and 1")
+        elif type(value) is not int or value < 1:
+            raise ValueError(f"{key} must be a positive integer")
+    return load_data_config(path.parent / values["data"]), model
